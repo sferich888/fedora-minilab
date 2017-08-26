@@ -1,0 +1,4 @@
+*.retry
+*.pyc
+*.pyo
+*dev*

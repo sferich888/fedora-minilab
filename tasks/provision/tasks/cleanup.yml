@@ -1,0 +1,22 @@
+---
+
+- name: Stop the VM
+  virt:
+      name: "{{ inventory_hostname }}"
+      command: destroy
+  delegate_to: "{{item}}"
+  with_items: "{{groups['hypervisor']}}"
+  become: true
+  become_user: root
+  ignore_errors: yes
+
+- name: Delete the VM
+  virt:
+      name: "{{ inventory_hostname }}"
+      command: undefine
+  delegate_to: "{{item}}"
+  with_items: "{{groups['hypervisor']}}"
+  become: true
+  become_user: root
+  ignore_errors: yes
+

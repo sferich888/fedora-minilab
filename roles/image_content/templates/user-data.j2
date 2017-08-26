@@ -1,0 +1,36 @@
+#cloud-config
+debug: True
+
+{% if cloud_user_passwd is defined %}
+password: {{ cloud_user_passwd }}
+chpasswd: { expire: False }
+ssh_pwauth: True
+{% endif %}
+
+{% if ssh_pub_key is defined %}
+ssh_authorized_keys:
+  - {{ ssh_pub_key }}
+{% endif %}
+
+manage_resolv_conf: true
+
+resolv_conf:
+  nameservers: [{{ libvirt_bridges.0.ip_address }}]
+
+{% if update is defined %}
+package_upgrade: {{ update }}
+{% endif %} 
+
+{% if install_packages is defined %}
+packages:
+  {% for package in install_packages -%}
+  - {{ package }}
+  {% endfor -%} 
+{% endif %} 
+
+{% if run_cmds is defined %}
+runcmd:
+  {% for cmd in run_cmds -%}
+  - {{ cmd }}
+  {% endfor -%} 
+{% endif %}

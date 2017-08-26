@@ -1,0 +1,44 @@
+---
+
+- include_vars:
+    file: roles/image_content/defaults/main.yml
+  run_once: true
+
+- include_vars:
+    file: roles/network_bridge/defaults/main.yml
+  run_once: true
+
+- virt_net:
+    command: facts
+  delegate_to: "{{item}}"
+  with_items: "{{groups['hypervisor']}}"
+
+- name: Stripping GB from extra_disk value
+  set_fact: 
+    extra_disk_value: "{{ extra_disk | regex_replace('GB') }}"
+  when: "extra_disk | search('GB') and hostvars[inventory_hostname]['extra_disk'] is defined"
+
+- name: Stripping MB from RAM value
+  set_fact: 
+    ram_value: "{{ ram | regex_replace('MB') }}"
+  when: "ram | search('MB') and hostvars[inventory_hostname]['ram'] is defined"
+
+- name: Run Virt Install 
+  shell: virt-install --name {{ inventory_hostname }} --ram {{ ram_value }} --disk {{ libvirt_images_path }}/{{ inventory_hostname }}.qcow --disk /tmp/{{ inventory_hostname }}/cidata.iso,device=cdrom --network network={{ libvirt_bridges[0].name }},mac={{ hostvars[inventory_hostname]['mac'] }} --import --os-type=linux --noautoconsole
+  register: provision_result
+  until: provision_result.rc == 0 
+  delay: 1
+  retries: 5 
+  when: "libvirt_bridges.0.name in ansible_libvirt_networks and hostvars[inventory_hostname]['extra_disk'] is undefined"
+  delegate_to: "{{item}}"
+  with_items: "{{groups['hypervisor']}}"
+
+- name: Run Virt Install (with Extra Disk)
+  shell: virt-install --name {{ inventory_hostname }} --ram {{ ram_value }} --disk {{ libvirt_images_path }}/{{ inventory_hostname }}.qcow --disk /tmp/{{ inventory_hostname }}/cidata.iso,device=cdrom --disk path={{ libvirt_images_path }}/{{ inventory_hostname }}.disk,size={{ extra_disk_value }} --network network={{ libvirt_bridges[0].name }},mac={{ hostvars[inventory_hostname]['mac'] }} --import --os-type=linux --noautoconsole
+  register: provision_result
+  until: provision_result.rc == 0
+  delay: 1
+  retries: 5
+  when: "libvirt_bridges.0.name in ansible_libvirt_networks and hostvars[inventory_hostname]['extra_disk'] is defined"
+  delegate_to: "{{item}}"
+  with_items: "{{groups['hypervisor']}}"
