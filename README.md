@@ -54,14 +54,14 @@ If you look in the **host_vars** folder in the example you can see a set of vari
 ```text
 ip: 192.168.100.1
 host_image_uri: "http://mirror.cc.vt.edu/pub/fedora/linux/releases/26/CloudImages/x86_64/images/Fedora-Cloud-Base-26-1.5.x86_64.qcow2"
-ram: 512 # in MB
+ram: 512MB                       ## Needs to be in a #MB, as it will be translated into a #, MB is the only supprted value definition. 
 
 # Optional: cloud_usr_passwd: password     ### Note for RHEL systems the user is cloud-user
 # Optional: ssh_pub_key="ssh-rsa KEY user@HOST"
    - While these are optional one of them wil need to be specified, in order for you to be given access to the VM.
 
 # Optional: storage_extend: 2GB  ## Needs to be in #{SIZE} format
-# Optional: extra_disk: 20GB     ## Needs to be in a # it is translated into GB format, mounted as /dev/sdb and should only be supplied once
+# Optional: extra_disk: 20GB     ## Needs to be in a #GB, as it will be translated into a # defining the size of an extra volume, mounted as /dev/sdb. It should only be supplied once. 
 # Optional: run_cmds: [['echo', '1234'], ['curl', 'www.google.com']]
 
 --- Experimental ---
