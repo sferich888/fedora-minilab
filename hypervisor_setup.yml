@@ -1,0 +1,48 @@
+---
+- name: Hypervisor Setup
+  hosts: hypervisor
+  become: true
+  become_user: root
+
+  vars: 
+  - hypervisor_packages:
+    - python2-libvirt 
+    - python2-lxml 
+    - libselinux-python 
+    - genisoimage 
+    - virt-install
+    - virt-manager
+
+  tasks: 
+  - name: Install Packages (yum)
+    yum :
+      name: "{{ item }}"
+      state: latest
+    with_items: "{{ hypervisor_packages }}"
+    when: ansible_distribution == 'Red Hat Enterprise Linux' or ansible_distribution == 'CentOS' 
+    become: true
+  
+  - name: Install Packages (dnf)
+    dnf :
+      name: "{{ item }}"
+      state: latest
+    with_items: "{{ hypervisor_packages }}"
+    when: ansible_distribution == 'Fedora' 
+    become: true
+  
+  - name: Setup Network Manager (to use dnsmasq instead of resolve.conf)
+    ini_file:
+      dest: /etc/NetworkManager/NetworkManager.conf
+      section: main
+      option: dns
+      value: dnsmasq
+      backup: yes
+    register: ini_updates
+    become: true
+  
+  - name: Restart NetworkManager (enable DNS changes)
+    service:
+      name: NetworkManager
+      state: reloaded                            # restarted could be used!
+    become: true
+    when: ini_updates.changed

@@ -1,0 +1,11 @@
+<pool type='logical'>
+  <name>{{ item.key }}</name>
+  <source>
+    <device path='{{ item.value.path }}'/>
+    <name>{{ item.key }}</name>
+    <format type='lvm2'/>
+  </source>
+  <target>
+    <path>/dev/{{ item.key }}</path>
+  </target>
+</pool>

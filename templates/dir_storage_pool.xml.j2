@@ -1,0 +1,9 @@
+<pool type='dir'>
+  <name>{{ item.key }}</name>
+  <source>
+  </source>
+  <target>
+    <path>{{ item.value.path | expanduser }}</path>
+  </target>
+</pool>
+

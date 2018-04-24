@@ -1,0 +1,28 @@
+---
+- name: Virt Storage Setup
+  hosts: hypervisor
+  become: true
+  become_user: root
+  gather_facts: yes 
+
+  tasks:
+
+  - include_tasks: tasks/dir_storage.yml
+    when: storage_pool.value.type == "dir"  
+    with_items: "{{ libvirt_pools | list }}"
+    loop_control:
+      loop_var: storage_pool
+
+  - include_tasks: tasks/lvm_storage.yml
+    when: storage_pool.value.type == "lvm"
+    with_items: "{{ libvirt_pools | list }}"
+    loop_control:
+      loop_var: storage_pool
+
+    
+### $ ansible-playbook -i localhost, playbook.yml -K -c local
+
+### Clean Up
+# sudo virsh pool-destroy virt-pool
+# sudo virsh pool-undefine virt-pool
+# sudo virsh pool-delete virt-pool OR sudo vgremove virt-pool

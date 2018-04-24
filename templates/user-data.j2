@@ -1,5 +1,7 @@
 #cloud-config
 debug: True
+hostname: {{ inventory_hostname_short }}
+fqdn: {{ inventory_hostname }}
 
 {% if cloud_user_passwd is defined %}
 password: {{ cloud_user_passwd }}
@@ -11,11 +13,6 @@ ssh_pwauth: True
 ssh_authorized_keys:
   - {{ ssh_pub_key }}
 {% endif %}
-
-manage_resolv_conf: true
-
-resolv_conf:
-  nameservers: [{{ libvirt_bridges.0.ip_address }}]
 
 {% if update is defined %}
 package_upgrade: {{ update }}

@@ -1,0 +1,16 @@
+[hypervisor]
+127.0.0.1 ansible_connection=local
+
+[hypervisor:vars]
+libvirt_bridges=[{'name': 'minilab', 'forward': 'nat', 'bridge': 'virbr-100', 'domain': 'minilab.org', 'network': '192.168.100.0', 'broadcast': '192.168.100.255', 'ip_address': '192.168.100.254', 'ip_netmask': '255.255.255.0', 'dhcp_start': '192.168.100.1', 'dhcp_end': '192.168.100.253'}]
+libvirt_pools=[{'virt-pool': { 'type': 'lvm', 'path': '/dev/nvme0n1p2' } }]
+#Example: libvirt_pools=[{'virt-pool': { 'type': 'dir', 'path': '~/VirtualMachines' }, 'virt-pool2': { 'type': 'lvm', 'path': '/dev/mmcblk0' } }]
+
+[lab:vars]
+cloud_user_passwd="password"
+#ssh_pub_key="ssh-rsa KEY user@HOST"
+resources={'vcpus': 2, 'ram': 1024, 'disks': [{'size': 10, 'pool': 'virt-pool'}, {'size': 1, 'pool': 'virt-pool'}, {'size': 2, 'pool': 'virt-pool'}], 'network': 'minilab'}
+
+[lab]
+fedora_iso.minilab.org image_uri="https://download.fedoraproject.org/pub/fedora/linux/releases/27/Server/x86_64/iso/Fedora-Server-dvd-x86_64-27-1.6.iso" image_checksum="sha256:e383dd414bb57231b20cbed11c4953cac71785f7d4f5990b0df5ad534a0ba95c" 
+fedora_cloud.minilab.org image_uri="https://download.fedoraproject.org/pub/fedora/linux/releases/27/CloudImages/x86_64/images/Fedora-Cloud-Base-27-1.6.x86_64.qcow2" image_checksum="sha256:5af84b59b9c8c132adf4989fc8f20c6a0297b1b53ce992014d934a51cccdd4c9"

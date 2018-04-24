@@ -1,4 +1,0 @@
----
-# path where the images are stored
-libvirt_images_path: "/var/lib/libvirt/images"
-

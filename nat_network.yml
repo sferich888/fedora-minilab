@@ -1,0 +1,55 @@
+---
+- name: NAT Network Setup
+  hosts: hypervisor
+  become: true
+  become_user: root
+  gather_facts: no 
+
+  tasks:
+  #- name: Create Networking Configs
+  #  template:
+  #    src: network_config.xml.j2
+  #    dest: "/tmp/{{ item.name }}.xml"
+  #  with_items: "{{ libvirt_bridges }}"
+  #  become: true
+
+  - virt_net:
+      command: facts
+ 
+  # Be wary of the network name conflicting with similar names in your network list. 
+  - name: Create Virtual Networks
+    virt_net: 
+      command: define 
+      name: "{{ item.name }}" 
+      xml: "{{ lookup('template', 'network_config.xml.j2') }}"
+    when: "item.name not in ansible_libvirt_networks"
+    with_items: "{{ libvirt_bridges }}"
+    become: true
+  
+  - name: Start Virtual Networks
+    virt_net: 
+      command: start 
+      name: "{{ item.name }}"
+      state: active 
+    when: "item.name not in ansible_libvirt_networks"
+    with_items: "{{ libvirt_bridges }}"
+    become: true
+  
+  - name: Setup Network Manager (on Hypervisor) - auto DNS
+    template:
+      src: dnsmasq_config.j2
+      dest: "/etc/NetworkManager/dnsmasq.d/libvirt_{{ item.name }}_dnsmasq.conf"
+    with_items: "{{ libvirt_bridges }}"
+    become: true
+  
+  - name: Update NetworkManager (enable DNS changes)
+    service:
+      name: NetworkManager
+      state: reloaded                               # restarted may be required. 
+    become: true
+  
+  #- pause:
+  #    seconds: 15
+  #- debug:
+  #    msg: "Delete network with: sudo virsh net-destroy {{ libvirt_bridges.0.name }}; sudo virsh net-undefine {{ libvirt_bridges.0.name }}"
+  #  when: '"{{ libvirt_bridges.0.name }}" in "{{ ansible_libvirt_networks }}"'

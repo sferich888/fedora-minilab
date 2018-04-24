@@ -1,0 +1,144 @@
+---
+- name: Provision Lab
+  hosts: lab
+  become: true
+  become_user: root
+  gather_facts: no
+ 
+  vars:
+    tmp_path: /tmp
+    download_images_path: "{{ '~/Downloads' | expanduser }}"
+    libvirt_images_path: /var/lib/libvirt/images
+
+  tasks:
+
+  - name: Ensure temp Path Exists
+    file:
+      path: "{{ tmp_path }}"
+      state: directory
+      recurse: yes
+    delegate_to: "{{ item }}"
+    with_items: "{{ groups['hypervisor'] }}"
+  
+  - name: Ensure Host temp Path Exists
+    file:
+      path: "{{ tmp_path }}/{{ inventory_hostname_short }}"
+      state: directory
+      recurse: yes
+    delegate_to: "{{ item }}"
+    with_items: "{{ groups['hypervisor'] }}"
+
+  - name: Ensure Download Path Exists
+    file:
+      path: "{{ download_images_path }}"
+      state: directory
+      recurse: yes
+    run_once: true
+    delegate_to: "{{ item }}"
+    with_items: "{{ groups['hypervisor'] }}"
+  
+  - name: Ensure Image Path Exists
+    file:
+      path: "{{ libvirt_images_path }}"
+      state: directory
+      recurse: yes
+    run_once: true
+    delegate_to: "{{ item }}"
+    with_items: "{{ groups['hypervisor'] }}"
+
+  - virt_net:
+      command: facts
+    delegate_to: "{{ item }}"
+    with_items: "{{ groups['hypervisor'] }}"
+
+  - virt_pool:
+      command: facts
+    delegate_to: "{{ item}}"
+    with_items: "{{ groups['hypervisor'] }}"
+  
+  - name: Download Lab Base Image[s] to Hypervisor (with sha256sum check)
+    get_url:
+      url: "{{ image_uri }}" 
+      dest: "{{ download_images_path }}/{{ image_uri | basename }}"
+      checksum: "{{ image_checksum }}"
+      force: no
+    delegate_to: "{{ item }}"
+    with_items: "{{ groups['hypervisor'] }}"
+    when: "image_checksum is defined"
+  
+  - name: Download Lab Base Image[s] to Hypervisor
+    get_url:
+      url: "{{ image_uri }}" 
+      dest: "{{ download_images_path }}/{{ image_uri | basename }}"
+      force: no
+    delegate_to: "{{item}}"
+    with_items: "{{groups['hypervisor']}}"
+    when: "image_checksum is undefined"
+  
+  - name: Create Host Image when Cloud Image is used
+    command: "cp {{download_images_path}}/{{ image_uri | basename }} {{ libvirt_images_path }}/{{ inventory_hostname_short }}.qcow"
+    args:
+      chdir: "{{ libvirt_images_path }}"
+      creates: "{{ libvirt_images_path }}/{{ inventory_hostname_short }}.qcow"
+    when: image_uri | splitext | last == ".qcow2"
+    delegate_to: "{{ item }}"
+    with_items: "{{ groups['hypervisor'] }}"
+  
+  - name: Create user-data config 
+    template:
+      src: "templates/user-data.j2"
+      dest: "{{ tmp_path }}/{{ inventory_hostname_short }}/user-data"
+    delegate_to: "{{item}}"
+    with_items: "{{groups['hypervisor']}}"
+    when: image_uri | splitext | last == ".qcow2"
+  
+  - name: Create meta-data config 
+    template:
+      src: "templates/meta-data.j2"
+      dest: "{{ tmp_path }}/{{ inventory_hostname_short }}/meta-data"
+    delegate_to: "{{item}}"
+    with_items: "{{groups['hypervisor']}}"
+    when: image_uri | splitext | last == ".qcow2"
+
+  - name: Build cloud-init ISO
+    shell: genisoimage -output "{{ tmp_path }}/{{ inventory_hostname_short }}/cidata.iso" -volid cidata -joliet -rock "{{ tmp_path }}/{{ inventory_hostname_short }}/user-data" "{{ tmp_path }}/{{ inventory_hostname_short }}/meta-data"
+    args: 
+      creates: "{{ tmp_path }}/{{ inventory_hostname_short }}/cidata.iso" 
+    delegate_to: "{{item}}"
+    with_items: "{{groups['hypervisor']}}"
+    when: image_uri | splitext | last == ".qcow2"
+
+  - name: Build kickstart
+    template:
+      src: "templates/kickstart.ks.j2"
+      dest: "{{ tmp_path }}/{{ inventory_hostname_short }}/kickstart.ks"
+    delegate_to: "{{ item }}"
+    with_items: "{{ groups['hypervisor'] }}"
+    when: image_uri | splitext | last == ".iso"
+  
+  - set_fact:
+      disks: ""
+
+  - set_fact: 
+      disks: "{{ disks }} --disk pool={{ item.pool }},device=disk,sparse=no,size={{ item.size }},bus=virtio"
+    with_items: "{{ resources.disks }}"
+
+  - name: Run Virt Install (cloud image) 
+    shell: virt-install --name {{ inventory_hostname_short }} --vcpus {{ resources.vcpus | default(1) }} --ram {{ resources.ram | default(512) }} --disk {{ libvirt_images_path }}/{{ inventory_hostname_short }}.qcow --disk {{ tmp_path }}/{{ inventory_hostname_short }}/cidata.iso,device=cdrom {{ disks }} --network network={{ resources.network }} --import --noautoconsole
+    register: provision_result
+    until: provision_result.rc == 0 
+    delay: 1
+    retries: 5 
+    when: "resources.network in ansible_libvirt_networks and image_uri | splitext | last == '.qcow2'"
+    delegate_to: "{{ item }}"
+    with_items: "{{ groups['hypervisor'] }}"
+
+  - name: Run Virt Install (iso) 
+    shell: virt-install --name {{ inventory_hostname_short }} --vcpus {{ resources.vcpus | default(1) }} --ram {{ resources.ram | default(512) }} --location {{ download_images_path }}/{{ image_uri | basename }} {{ disks }} --network network={{ resources.network }} --initrd-inject={{ tmp_path }}/{{ inventory_hostname_short }}/kickstart.ks -x "ks=file:/kickstart.ks {{ extra_cmd_args | default() }}" --noautoconsole
+    register: provision_result
+    until: provision_result.rc == 0 
+    delay: 1
+    retries: 5 
+    when: "resources.network in ansible_libvirt_networks and image_uri | splitext | last == '.iso'"
+    delegate_to: "{{ item }}"
+    with_items: "{{ groups['hypervisor'] }}"

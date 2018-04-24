@@ -1,1 +1,0 @@
-../roles/network_bridge/filter_plugins/dns_from_host_group.py

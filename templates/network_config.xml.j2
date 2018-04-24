@@ -11,19 +11,11 @@
     <forwarder address={{ forwarder }}/>
   {% endfor %}
 {% endif %}
-{% for host in item.dns_names %}
-    <host ip='{{ host.ip }}'>
-      <hostname>{{ host.shortname }}.{{ item.domain }}</hostname>
-    </host>
-{% endfor %}
   </dns>
   <ip address='{{ item.ip_address }}' netmask='{{ item.ip_netmask }}'>
 {% if item.dhcp_start is defined %}
     <dhcp>
       <range start='{{ item.dhcp_start }}' end='{{ item.dhcp_end }}' />
-{% for host in item.dns_names %}
-      <host mac='{{ host.mac }}' name='{{ host.shortname }}.{{ item.domain }}' ip='{{ host.ip }}' />
-{% endfor %}
     </dhcp>
 {% endif %}
   </ip>

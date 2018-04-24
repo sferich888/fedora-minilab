@@ -1,0 +1,47 @@
+- parted: 
+    device: "{{ item.value.path }}"
+    state: info
+  become: True
+  register: device_partitions
+  with_dict: "{{ storage_pool }}"
+  when: item.value.type == "lvm" 
+
+- name: "Create VG"
+  lvg:
+    vg: "{{ item.key }}"
+    pvs: "{{ item.value.path }}"
+  become: True
+  with_dict: "{{ storage_pool }}"
+  when: item.value.type == "lvm" 
+
+- name: Confirm VG is defined
+  command: bash -c "vgs -o vg_name | grep {{ item.key }}"
+  register: vg_exist
+  become: True
+  with_dict: "{{ storage_pool }}"
+  when: item.value.type == "lvm" 
+
+### Assumes that VG is only backed by 1 PV! 
+- name: Get VG's backing PV
+  command: bash -c "pvdisplay -C --separator ', ' -o pv_name,vg_name --noheadings | grep {{ item.key }} | awk -F',' '{print $1}'"
+  register: vg_device
+  become: True
+  with_dict: "{{ storage_pool }}"
+  when: item.value.type == "lvm" 
+
+- name: "Create libvirt Storage Pool"
+  virt_pool:
+    command: define
+    name: "{{ item.key }}"
+    xml: '{{ lookup("template", "lvm_storage_pool.xml.j2") }}'
+  become: True
+  with_dict: "{{ storage_pool }}"
+  when: item.value.type == "lvm" 
+
+- name: Activate LVM Storage Pool
+  virt_pool:
+    state: active
+    name: "{{ item.key }}"
+  become: True
+  with_dict: "{{ storage_pool }}"
+  when: item.value.type == "lvm" 

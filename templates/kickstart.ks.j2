@@ -1,0 +1,34 @@
+lang en_US
+keyboard us
+timezone America/New_York --isUtc
+#platform x86, AMD64, or Intel EM64T
+network --bootproto=dhcp --hostname={{ inventory_hostname }}
+rootpw {{ kickstart_root_passwd | default('password') }} --plaintext
+user --name={{ kickstart_user | default('ks_user') }} --groups=wheel --plaintext --password={{ cloud_user_passwd | default('password')}} 
+{% if ssh_pub_key is defined -%}
+sshkey --username {{ kickstart_user | default('ks_user') }} {{ ssh_pub_key }}
+{% endif -%}
+reboot
+text
+cdrom
+bootloader --location=mbr --append="rhgb quiet crashkernel=auto"
+zerombr
+clearpart --all --initlabel
+autopart --nohome
+
+timezone America/New_York --isUtc --ntpservers=clock1.rdu2.redhat.com,clock.bos.redhat.com
+auth --passalgo=sha512 --useshadow
+selinux --enforcing
+firewall --disabled
+firstboot --disable
+
+%packages
+{% if install_packages is defined %}
+  {% for package in install_packages -%}
+{{ package }}
+  {% endfor -%} 
+{% endif %} 
+%end
+
+%post
+%end

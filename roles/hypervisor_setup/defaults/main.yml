@@ -1,7 +1,0 @@
----
-hypervisor_packages: 
-- libvirt-python.x86_64
-- libselinux-python
-- python2-lxml.x86_64
-- genisoimage
-- virt-install

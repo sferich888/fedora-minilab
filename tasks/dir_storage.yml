@@ -1,0 +1,46 @@
+- name: "Checking Storage Path"
+  stat:
+    path: "{{ item.value.path | expanduser }}"
+  register: folder_stats
+  with_dict: "{{ storage_pool }}"
+  become: False
+
+- name: "Creating Directory for missing Storage Path"
+  file:
+    path: "{{ item.item.value.path | expanduser }}"
+    state: directory
+    mode: 0755
+    group: "{{ ansible_user_id }}"
+    owner: "{{ ansible_user_id }}"
+  when: item.stat.exists == false
+  with_items: "{{ folder_stats.results | list }}"
+  become: False
+
+#TODO: Build a set of paths that need ACL permission on them to allow libvirt to read the directory. 
+#- name: Grant libvirt-qemu access to Storage Pool
+#  acl:
+#    path: "{{ item.value.path | expanduser }}"
+#    entity: qemu
+#    etype: user
+#    permissions: rx
+#    recursive: yes
+#    state: present 
+#  when: item.value.type == "dir"
+#  with_dict: "{{ storage_pool }}"
+
+- name: "Create libvirt Storage Pool"
+  virt_pool:
+    command: define
+    name: "{{ item.key }}"
+    xml: "{{ lookup('template', 'dir_storage_pool.xml.j2') }}"
+  become: True
+  with_dict: "{{ storage_pool }}"
+  when: item.value.type == "dir"
+
+- name: Activate libvirt Storage Pool
+  virt_pool:
+    state: active
+    name: "{{ item.key }}"
+  become: True
+  with_dict: "{{ storage_pool }}"
+  when: item.value.type == "dir"
