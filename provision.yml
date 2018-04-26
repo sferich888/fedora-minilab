@@ -80,10 +80,32 @@
     args:
       chdir: "{{ libvirt_images_path }}"
       creates: "{{ libvirt_images_path }}/{{ inventory_hostname_short }}.qcow"
-    when: image_uri | splitext | last == ".qcow2"
+    when: image_uri | splitext | last == ".qcow2" and convert_to_lv_on_vg is undefined
     delegate_to: "{{ item }}"
     with_items: "{{ groups['hypervisor'] }}"
   
+  - name: Create LV from Image
+    block:
+    - name: Determine Image Size or LV Creation
+      command: bash -c "qemu-img info {{ download_images_path }}/{{ image_uri | basename }} | grep 'virtual size' | awk -F\( '{print $2}' | awk '{print $1}'"
+      register: image_size
+      delegate_to: "{{ item }}"
+      with_items: "{{ groups['hypervisor'] }}"
+
+    - name: Create Logical Volume for VM
+      lvol:
+        vg: "{{ convert_to_lv_on_vg }}"
+        lv: "{{ inventory_hostname_short }}"
+        size: "{{ image_size.results[0].stdout }}b"
+      delegate_to: "{{ item }}"
+      with_items: "{{ groups['hypervisor'] }}"
+
+    - name: Convert Image to Volume
+      command: bash -c "qemu-img convert -O raw {{ download_images_path }}/{{ image_uri | basename }} /dev/{{ convert_to_lv_on_vg }}/{{ inventory_hostname_short }}"
+      delegate_to: "{{ item }}"
+      with_items: "{{ groups['hypervisor'] }}"
+    when: convert_to_lv_on_vg is defined
+
   - name: Create user-data config 
     template:
       src: "templates/user-data.j2"
@@ -123,13 +145,23 @@
       disks: "{{ disks }} --disk pool={{ item.pool }},device=disk,sparse=no,size={{ item.size }},bus=virtio"
     with_items: "{{ resources.disks }}"
 
+  - name: Run Virt Install (cloud image) from LVM
+    shell: virt-install --name {{ inventory_hostname_short }} --vcpus {{ resources.vcpus | default(1) }} --ram {{ resources.ram | default(512) }} --disk path=/dev/{{ convert_to_lv_on_vg }}/{{ inventory_hostname_short }},bus=virtio --disk {{ tmp_path }}/{{ inventory_hostname_short }}/cidata.iso,device=cdrom {{ disks }} --network network={{ resources.network }} --import --noautoconsole
+    register: provision_result
+    until: provision_result.rc == 0
+    delay: 1
+    retries: 5
+    when: "resources.network in ansible_libvirt_networks and image_uri | splitext | last == '.qcow2' and convert_to_lv_on_vg is defined"
+    delegate_to: "{{ item }}"
+    with_items: "{{ groups['hypervisor'] }}"
+
   - name: Run Virt Install (cloud image) 
     shell: virt-install --name {{ inventory_hostname_short }} --vcpus {{ resources.vcpus | default(1) }} --ram {{ resources.ram | default(512) }} --disk {{ libvirt_images_path }}/{{ inventory_hostname_short }}.qcow --disk {{ tmp_path }}/{{ inventory_hostname_short }}/cidata.iso,device=cdrom {{ disks }} --network network={{ resources.network }} --import --noautoconsole
     register: provision_result
     until: provision_result.rc == 0 
     delay: 1
     retries: 5 
-    when: "resources.network in ansible_libvirt_networks and image_uri | splitext | last == '.qcow2'"
+    when: "resources.network in ansible_libvirt_networks and image_uri | splitext | last == '.qcow2' and convert_to_lv_on_vg is undefined"
     delegate_to: "{{ item }}"
     with_items: "{{ groups['hypervisor'] }}"
 
