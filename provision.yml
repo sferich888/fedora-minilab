@@ -6,23 +6,23 @@
   gather_facts: no
  
   vars:
-    tmp_path: /tmp
+    tmp_path: /tmp/
     download_images_path: "{{ '~/Downloads' | expanduser }}"
     libvirt_images_path: /var/lib/libvirt/images
 
   tasks:
 
-  - name: Ensure temp Path Exists
+  - name: Ensure tmp Path Exists
     file:
       path: "{{ tmp_path }}"
       state: directory
-      recurse: yes
+      #recurse: yes
     delegate_to: "{{ item }}"
     with_items: "{{ groups['hypervisor'] }}"
   
   - name: Ensure Host temp Path Exists
     file:
-      path: "{{ tmp_path }}/{{ inventory_hostname_short }}"
+      path: "{{ tmp_path }}{{ inventory_hostname_short }}"
       state: directory
       recurse: yes
     delegate_to: "{{ item }}"
@@ -123,9 +123,9 @@
     when: image_uri | splitext | last == ".qcow2"
 
   - name: Build cloud-init ISO
-    shell: genisoimage -output "{{ tmp_path }}/{{ inventory_hostname_short }}/cidata.iso" -volid cidata -joliet -rock "{{ tmp_path }}/{{ inventory_hostname_short }}/user-data" "{{ tmp_path }}/{{ inventory_hostname_short }}/meta-data"
+    shell: genisoimage -output "{{ tmp_path }}{{ inventory_hostname_short }}/cidata.iso" -volid cidata -joliet -rock "{{ tmp_path }}{{ inventory_hostname_short }}/user-data" "{{ tmp_path }}{{ inventory_hostname_short }}/meta-data"
     args: 
-      creates: "{{ tmp_path }}/{{ inventory_hostname_short }}/cidata.iso" 
+      creates: "{{ tmp_path }}{{ inventory_hostname_short }}/cidata.iso"
     delegate_to: "{{item}}"
     with_items: "{{groups['hypervisor']}}"
     when: image_uri | splitext | last == ".qcow2"
@@ -133,7 +133,7 @@
   - name: Build kickstart
     template:
       src: "templates/kickstart.ks.j2"
-      dest: "{{ tmp_path }}/{{ inventory_hostname_short }}/kickstart.ks"
+      dest: "{{ tmp_path }}{{ inventory_hostname_short }}/kickstart.ks"
     delegate_to: "{{ item }}"
     with_items: "{{ groups['hypervisor'] }}"
     when: image_uri | splitext | last == ".iso"
@@ -156,7 +156,7 @@
     with_items: "{{ groups['hypervisor'] }}"
 
   - name: Run Virt Install (cloud image) 
-    shell: virt-install --name {{ inventory_hostname_short }} --vcpus {{ resources.vcpus | default(1) }} --ram {{ resources.ram | default(512) }} --disk {{ libvirt_images_path }}/{{ inventory_hostname_short }}.qcow --disk {{ tmp_path }}/{{ inventory_hostname_short }}/cidata.iso,device=cdrom {{ disks }} --network network={{ resources.network }} --import --noautoconsole
+    shell: virt-install --name {{ inventory_hostname_short }} --vcpus {{ resources.vcpus | default(1) }} --ram {{ resources.ram | default(512) }} --disk {{ libvirt_images_path }}/{{ inventory_hostname_short }}.qcow --disk {{ tmp_path }}{{ inventory_hostname_short }}/cidata.iso,device=cdrom {{ disks }} --network network={{ resources.network }} --import --noautoconsole
     register: provision_result
     until: provision_result.rc == 0 
     delay: 1
@@ -166,7 +166,7 @@
     with_items: "{{ groups['hypervisor'] }}"
 
   - name: Run Virt Install (iso) 
-    shell: virt-install --name {{ inventory_hostname_short }} --vcpus {{ resources.vcpus | default(1) }} --ram {{ resources.ram | default(512) }} --location {{ download_images_path }}/{{ image_uri | basename }} {{ disks }} --network network={{ resources.network }} --initrd-inject={{ tmp_path }}/{{ inventory_hostname_short }}/kickstart.ks -x "ks=file:/kickstart.ks {{ extra_cmd_args | default() }}" --noautoconsole
+    shell: virt-install --name {{ inventory_hostname_short }} --vcpus {{ resources.vcpus | default(1) }} --ram {{ resources.ram | default(512) }} --location {{ download_images_path }}/{{ image_uri | basename }} {{ disks }} --network network={{ resources.network }} --initrd-inject={{ tmp_path }}{{ inventory_hostname_short }}/kickstart.ks -x "ks=file:/kickstart.ks {{ extra_cmd_args | default() }}" --noautoconsole
     register: provision_result
     until: provision_result.rc == 0 
     delay: 1
